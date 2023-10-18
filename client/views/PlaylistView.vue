@@ -16,7 +16,7 @@ let loaded = ref(false);
 //   },
 // );
 
-const loadNewPlaylist = async (id) => {
+const loadNewPlaylist = async (id: string | string[]) => {
   let playlistResults;
   try {
     playlistResults = await fetchy(`/api/compilation/${id}`, "GET");
