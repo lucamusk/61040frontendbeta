@@ -7,7 +7,7 @@ const { id } = defineProps(["id", "playlistName"]);
 const emit = defineEmits(["refreshSongs"]);
 
 const loaded = ref(false);
-let song = ref({});
+let song = ref<Record<string, string>>({});
 
 async function getSong(songId: string) {
   let songResult;
