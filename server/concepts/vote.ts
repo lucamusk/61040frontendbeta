@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import DocCollection, { BaseDoc } from "../framework/doc";
-import { NotAllowedError, NotFoundError } from "./errors";
+import { BadValuesError, NotAllowedError, NotFoundError } from "./errors";
 
 export interface VoteDoc extends BaseDoc {
   post: ObjectId;
@@ -20,7 +20,7 @@ export default class VoteConcept {
   async getPostRating(post: ObjectId) {
     const voteCount = await this.voteCounts.readOne({ post: new ObjectId(post) });
     if (voteCount === null) {
-      throw new NotFoundError(`Post not found!`);
+      throw new NotFoundError(`Votes: Post not found!`);
     }
     return voteCount;
   }
@@ -57,7 +57,7 @@ export default class VoteConcept {
       await this.voteCounts.updateOne(
         { post: new ObjectId(post) },
         {
-          voteCount: voteCount.voteCount + 1,
+          voteCount: voteCount.voteCount + 2,
           upvotedMembers: voteCount.upvotedMembers.concat([user]),
           downvotedMembers: voteCount.downvotedMembers.filter((member) => !member.equals(new ObjectId(user))),
         },
@@ -74,12 +74,34 @@ export default class VoteConcept {
       await this.voteCounts.updateOne(
         { post: new ObjectId(post) },
         {
-          voteCount: voteCount.voteCount - 1,
+          voteCount: voteCount.voteCount - 2,
           downvotedMembers: voteCount.downvotedMembers.concat([user]),
           upvotedMembers: voteCount.upvotedMembers.filter((member) => !member.equals(new ObjectId(user))),
         },
       );
-    } else await this.voteCounts.updateOne({ post: new ObjectId(post) }, { voteCount: voteCount.voteCount + 1, upvotedMembers: voteCount.upvotedMembers.concat([user]) });
+    } else await this.voteCounts.updateOne({ post: new ObjectId(post) }, { voteCount: voteCount.voteCount - 1, downvotedMembers: voteCount.downvotedMembers.concat([user]) });
+    return { msg: "Post successfully updated!" };
+  }
+
+  async unVotePost(post: ObjectId, user: ObjectId) {
+    const voteCount = await this.getPostRating(post);
+    if (await this.userAlreadyDownvoted(post, user)) {
+      await this.voteCounts.updateOne(
+        { post: new ObjectId(post) },
+        {
+          voteCount: voteCount.voteCount + 1,
+          downvotedMembers: voteCount.downvotedMembers.filter((member) => !member.equals(new ObjectId(user))),
+        },
+      );
+    } else if (await this.userAlreadyUpvoted(post, user)) {
+      await this.voteCounts.updateOne(
+        { post: new ObjectId(post) },
+        {
+          voteCount: voteCount.voteCount - 1,
+          upvotedMembers: voteCount.upvotedMembers.filter((member) => !member.equals(new ObjectId(user))),
+        },
+      );
+    } else throw new BadValuesError("User has not voted on the given post");
     return { msg: "Post successfully updated!" };
   }
 }

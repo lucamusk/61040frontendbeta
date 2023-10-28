@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import AddMusicButton from "../Music/AddMusicButton.vue";
 import MusicThumbnail from "../Music/MusicThumbnail.vue";
-const { compilation } = defineProps(["compilation"]);
+const { compilation, favorites, groupId } = defineProps(["compilation", "favorites", "groupId"]);
 const emit = defineEmits(["refresh-compilation"]);
+
+import { useUserStore } from "@/stores/user";
+import { storeToRefs } from "pinia";
+
+const { isLoggedIn, currentUserId } = storeToRefs(useUserStore());
 </script>
 
 <template>
@@ -10,9 +15,9 @@ const emit = defineEmits(["refresh-compilation"]);
     <h2>{{ compilation.name }}</h2>
     <section class="playlists">
       <article v-for="songId in compilation.content" :key="songId">
-        <MusicThumbnail :id="songId" :playlistName="compilation.name" @refresh-songs="emit('refresh-compilation')" />
+        <MusicThumbnail :id="songId" :playlistName="compilation.name" @refresh-songs="emit('refresh-compilation')" :favorites="favorites" :groupId="groupId" />
       </article>
-      <AddMusicButton :playlistName="compilation.name" @refresh-songs="emit('refresh-compilation')" />
+      <AddMusicButton v-if="!favorites && isLoggedIn && compilation.owner === currentUserId" :playlistName="compilation.name" @refresh-songs="emit('refresh-compilation')" />
     </section>
   </div>
 </template>
@@ -30,6 +35,6 @@ const emit = defineEmits(["refresh-compilation"]);
 }
 
 section {
-  border-top: 1px solid black;
+  border-top: 1px solid --text;
 }
 </style>

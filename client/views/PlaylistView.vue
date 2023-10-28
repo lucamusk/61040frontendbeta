@@ -4,9 +4,10 @@ import { useRoute } from "vue-router";
 import CompilationMenu from "../components/Compilation/CompilationMenu.vue";
 import { fetchy } from "../utils/fetchy";
 let currentPlaylistId = ref(useRoute().params.id);
+let favorite = ref(useRoute().query.favorite);
+let groupId = ref(useRoute().query.groupId);
 let currentPlaylist = ref({});
 let loaded = ref(false);
-
 // watch(
 //   () => useRoute().params.id,
 //   async (prev, current) => {
@@ -35,6 +36,6 @@ onBeforeMount(async () => {
 
 <template>
   <div v-if="loaded">
-    <CompilationMenu :compilation="currentPlaylist" @refresh-compilation="loadNewPlaylist(currentPlaylistId)" />
+    <CompilationMenu :compilation="currentPlaylist" @refresh-compilation="loadNewPlaylist(currentPlaylistId)" :favorites="favorite" :groupId="groupId" />
   </div>
 </template>

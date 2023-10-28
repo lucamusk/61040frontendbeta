@@ -1,4 +1,5 @@
 import { User } from "./app";
+import { CaptionDoc } from "./concepts/caption";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
 import { Router } from "./framework/router";
@@ -9,14 +10,14 @@ import { Router } from "./framework/router";
  */
 export default class Responses {
   /**
-   * Convert PostDoc into more readable format for the frontend by converting the author id into a username.
+   * Convert CaptionDoc into more readable format for the frontend by converting the author id into a username.
    */
-  static async post(post: PostDoc | null) {
-    if (!post) {
-      return post;
+  static async caption(caption: CaptionDoc | null) {
+    if (!caption) {
+      return caption;
     }
-    const author = await User.getUserById(post.author);
-    return { ...post, author: author.username };
+    const author = await User.getUserById(caption.author);
+    return { ...caption, author: author.username };
   }
 
   /**

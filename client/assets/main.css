@@ -1,8 +1,37 @@
 /* Add some global styles here! */
 
+@font-face {
+  font-family: "Poppins";
+  font-weight: 400;
+  font-style: normal;
+  font-display: auto;
+  unicode-range: U+000-5FF;
+  src:
+    local("Poppins"),
+    url("/fonts/Poppins-Regular.ttf") format("ttf");
+}
+
+@font-face {
+  font-family: "Bebas";
+  font-weight: 400;
+  font-style: normal;
+  font-display: auto;
+  unicode-range: U+000-5FF;
+  src:
+    local("Bebas"),
+    url("/fonts/BebasNeue-Regular.ttf") format("ttf");
+}
+
 :root {
   --red: rgb(208, 67, 12);
-  --base-bg: #f1f3f5;
+  --base-bg: #e1e6dc;
+  --primary: #66bcc2;
+  --primary-select: #76ccd2;
+  --secondary: #c3e9e9;
+  --accent: #e53810;
+  --magenta: #f21aa7;
+  --text: #282828;
+  --base-select: #fefff9;
 }
 
 button.btn-small {

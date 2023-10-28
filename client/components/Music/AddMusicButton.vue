@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { fetchy } from "@/utils/fetchy";
 import { ref } from "vue";
+import CreateMusicForm from "./CreateMusicForm.vue";
+import MusicSelector from "./MusicSelector.vue";
 const emit = defineEmits(["refreshSongs"]);
 const { playlistName } = defineProps(["playlistName"]);
 
 let dialogOpen = ref(false);
-let name = ref();
+let selectedSong = ref("");
+let createMusicVisible = ref(false);
+let musicSelector = ref();
 
 const setDialog = (state: boolean) => {
   dialogOpen.value = state;
@@ -21,12 +25,8 @@ const addSong = async (songName: string) => {
     return;
   }
   emit("refreshSongs");
-  name.value = "";
+  selectedSong.value = "";
   setDialog(false);
-};
-
-const logAllSongs = async () => {
-  console.log(await fetchy(`/api/music`, "GET"));
 };
 </script>
 
@@ -37,15 +37,16 @@ const logAllSongs = async () => {
     </svg>
   </div>
   <section :class="{ open: dialogOpen, closed: !dialogOpen }">
-    <form @submit.prevent="addSong(name)">
-      <input id="name" v-model="name" placeholder="Provide song name!" required />
+    <form @submit.prevent="addSong(selectedSong)">
+      <MusicSelector @songSelected="(song) => (selectedSong = song.name)" ref="musicSelector" />
       <menu>
-        <button class="btn-small pure-button-primary pure-button" type="submit">Save</button>
-        <button class="btn-small pure-button" @click="setDialog(!dialogOpen)">Cancel</button>
+        <button class="button-primary" type="submit">Add</button>
+        <button @click="setDialog(!dialogOpen)" type="button">Cancel</button>
+        <button class="button-special" @click="createMusicVisible = true" type="button">Add a song to our database!</button>
       </menu>
-      <button class="btn-small pure-button" @click="logAllSongs">Output all music options to console! (For debugging alpha)</button>
     </form>
   </section>
+  <CreateMusicForm :dialogOpen="createMusicVisible" @closeMenu="createMusicVisible = false" @refreshMusic="musicSelector.getAllSongs()" />
 </template>
 
 <style scoped>
@@ -54,22 +55,25 @@ div {
   display: flex;
   justify-content: center;
   align-items: center;
-  border: 1px black solid;
+  background-color: var(--base-select);
+  transition: all 0.2s ease-in-out;
+  border-radius: 10px;
+  box-shadow: rgba(0, 0, 0, 0.1) 0px 3px 8px;
 }
 svg {
   width: 100%;
   height: 30px;
-  transition: all 0.2s ease-in-out;
   background-size: 300% 100%;
   border-radius: 5px;
   margin: 5px;
 }
 
-svg:hover {
+div:hover {
   cursor: pointer;
   color: white;
-  background-color: black;
+  background-color: var(--magenta);
   background-position: 100% 0;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
 }
 
 .closed {
@@ -87,14 +91,15 @@ svg:hover {
 }
 
 form {
-  background-color: #fefefe;
+  background-color: var(--base-select);
   margin: 20% auto;
   padding: 20px;
   border: 1px solid #888;
-  width: min-content;
+  width: 500px;
   display: flex;
   flex-direction: column;
   height: min-content;
+  border-radius: 10px;
 }
 
 menu {
@@ -103,9 +108,59 @@ menu {
   padding-left: 0;
   gap: 2vw;
   margin-bottom: 1vw;
+  border-radius: 10px;
 }
 
 menu > * {
   width: 100%;
+}
+
+button {
+  all: unset;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 130px;
+  margin-top: 20px;
+  font-weight: 600;
+  padding: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 5px;
+  border: var(--text) solid 1px;
+  box-shadow: rgba(0, 0, 0, 0.08) 0px 3px 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  cursor: pointer;
+  background-color: #f1f6ec;
+  box-shadow: rgba(0, 0, 0, 0.2) 0px 3px 8px;
+}
+
+.button-primary {
+  border: none;
+  background-color: var(--primary);
+}
+
+.button-primary:hover {
+  background-color: var(--primary-select);
+}
+
+.button-special {
+  border: none;
+  background-color: var(--magenta);
+}
+
+.button-special:hover {
+  background-color: #ff2ab7;
+}
+
+select {
+  background-color: #f1f6ec;
+  border: 1px black solid;
+  border-radius: 2px;
+  height: 28px;
+  font-weight: 400;
 }
 </style>

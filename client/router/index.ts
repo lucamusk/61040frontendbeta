@@ -2,6 +2,7 @@ import { storeToRefs } from "pinia";
 import { createRouter, createWebHistory } from "vue-router";
 
 import { useUserStore } from "@/stores/user";
+import GroupView from "../views/GroupView.vue";
 import HomeView from "../views/HomeView.vue";
 import LoginView from "../views/LoginView.vue";
 import NotFoundView from "../views/NotFoundView.vue";
@@ -26,6 +27,12 @@ const router = createRouter({
       path: "/playlist/:id",
       name: "Playlist",
       component: PlaylistView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/group/:name",
+      name: "Group",
+      component: GroupView,
       meta: { requiresAuth: true },
     },
     {

@@ -4,8 +4,9 @@ import { Router, getExpressRouter } from "./framework/router";
 
 import assert from "assert";
 import { Caption, Compilation, Friend, Group, Music, Photobanner, Post, User, Vote, WebSession } from "./app";
+import { CaptionDoc } from "./concepts/caption";
 import { BadValuesError, NotAllowedError } from "./concepts/errors";
-import { PostDoc, PostOptions } from "./concepts/post";
+import { PostDoc } from "./concepts/post";
 import { UserDoc } from "./concepts/user";
 import { WebSessionDoc } from "./concepts/websession";
 import Responses from "./responses";
@@ -25,6 +26,11 @@ class Routes {
   @Router.get("/users/:username")
   async getUser(username: string) {
     return await User.getUserByUsername(username);
+  }
+
+  @Router.get("/users/id/:id")
+  async getUserById(id: ObjectId) {
+    return await User.getUserById(new ObjectId(id));
   }
 
   @Router.post("/users")
@@ -62,50 +68,6 @@ class Routes {
   async logOut(session: WebSessionDoc) {
     WebSession.end(session);
     return { msg: "Logged out!" };
-  }
-
-  @Router.get("/posts")
-  async getPosts(group: ObjectId, author?: string) {
-    let posts;
-    assert(group, new BadValuesError("Please specify a group"));
-    if (author) {
-      const id = (await User.getUserByUsername(author))._id;
-      posts = await Post.getByAuthor(new ObjectId(group), id);
-    } else {
-      posts = await Post.getPosts({ location: group });
-    }
-    return Responses.posts(posts);
-  }
-
-  @Router.post("/posts")
-  async createPost(session: WebSessionDoc, music: ObjectId, text: string, group: ObjectId, options?: PostOptions) {
-    const user = WebSession.getUser(session);
-    const captionResult = await Caption.create(music, text);
-    if (!(await Group.userInGroup(group, user))) {
-      throw new NotAllowedError("User not in group");
-    }
-    assert(captionResult.caption, "Failure to create caption");
-    const created = await Post.create(user, captionResult.caption._id, group, options);
-    await Vote.initializePostVotes(created.post!._id);
-    await Compilation.addContent((await Compilation.getCompilationByName(group, "timeline"))._id, created.post!._id);
-    await Compilation.addContent((await Compilation.getCompilationByName(group, "recents"))._id, created.post!._id);
-    return { msg: created.msg, post: await Responses.post(created.post) };
-  }
-
-  @Router.patch("/posts/:_id")
-  async updatePost(session: WebSessionDoc, _id: ObjectId, update: Partial<PostDoc>) {
-    const user = WebSession.getUser(session);
-    await Post.isAuthor(user, _id);
-    return await Post.update(_id, update);
-  }
-
-  @Router.delete("/posts/:_id")
-  async deletePost(session: WebSessionDoc, _id: ObjectId, group: ObjectId) {
-    const user = WebSession.getUser(session);
-    await Post.isAuthor(user, _id);
-    await Compilation.removeContent((await Compilation.getCompilationByName(group, "timeline"))._id, _id);
-    await Compilation.removeContent((await Compilation.getCompilationByName(group, "recents"))._id, _id);
-    return Post.delete(_id);
   }
 
   @Router.get("/friends")
@@ -160,6 +122,15 @@ class Routes {
     return Group.getAllGroups();
   }
 
+  @Router.get("/group/byUser/:_id")
+  async getUserGroups(_id: ObjectId) {
+    try {
+      return Group.getGroupByUser(_id);
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
   @Router.post("/group")
   async createGroup(session: WebSessionDoc, name: string) {
     const created = await Group.create(name);
@@ -190,19 +161,83 @@ class Routes {
     return { ...group };
   }
 
-  @Router.post("/caption")
-  async createCaption(session: WebSessionDoc, music: ObjectId, text: string) {
-    return Caption.create(music, text);
+  @Router.get("/group/captions")
+  async getCaptions(groupId: ObjectId) {
+    assert(groupId, new BadValuesError("Please specify a group"));
+    const groupName = (await Group.getGroupById(groupId)).name;
+    const captions = await Group.getCaptions(groupName);
+    return captions;
+  }
+
+  @Router.post("/group/captions")
+  async createCaption(session: WebSessionDoc, musicId: ObjectId, text: string, groupId: ObjectId) {
+    const user = WebSession.getUser(session);
+    const captionResult = await Caption.create(user, musicId, text);
+    if (!(await Group.userInGroup(user, groupId))) {
+      throw new NotAllowedError("User not in group");
+    }
+    assert(captionResult.caption, "Failure to create caption");
+    //const created = await Post.create(user, captionResult.caption._id, group, options);
+    await Vote.initializePostVotes(captionResult.caption._id);
+    try {
+      await Compilation.addContent((await Compilation.getCompilationByName(groupId, "recents"))._id, musicId);
+    } catch {}
+    await Group.addCaption(captionResult.caption!._id, groupId);
+    return { msg: captionResult.msg, caption: await Responses.caption(captionResult.caption) };
+  }
+
+  @Router.delete("/group/captions/:captionId")
+  async deleteCaption(session: WebSessionDoc, captionId: ObjectId, groupId: ObjectId) {
+    const user = WebSession.getUser(session);
+    const caption = await Caption.getCaptionById(captionId);
+    await Caption.isAuthor(user, captionId);
+    await Compilation.removeContent((await Compilation.getCompilationByName(groupId, "recents"))._id, caption.media);
+    await Group.removeCaption(captionId, groupId);
+    return Caption.delete(captionId);
   }
 
   @Router.get("/caption/:_id")
   async getCaption(session: WebSessionDoc, _id: ObjectId) {
+    console.log("running get caption by id");
     return Caption.getCaptionById(_id);
   }
 
   @Router.get("/caption/media/:_id")
   async getMediaCaptions(session: WebSessionDoc, _id: ObjectId) {
     return Caption.getCaptionsByMedia(_id);
+  }
+
+  @Router.patch("/captions/:_id")
+  async updateCaption(session: WebSessionDoc, _id: ObjectId, update: Partial<PostDoc>) {
+    const user = WebSession.getUser(session);
+    await Caption.isAuthor(user, _id);
+    return await Caption.update(_id, update);
+  }
+
+  @Router.get("/compilation/favorite")
+  async getFavorites(session: WebSessionDoc) {
+    await session;
+    const userId = WebSession.getUser(session);
+    return await Compilation.getCompilationByName(userId, "favorites");
+  }
+
+  @Router.put("/compilation/add/favorite")
+  async addFavorite(session: WebSessionDoc, content: ObjectId) {
+    const userId = await WebSession.getUser(session);
+    const compilation = await Compilation.getCompilationByName(userId, "favorites");
+    return await Compilation.addContent(compilation._id, content);
+  }
+
+  @Router.put("/compilation/remove/favorite")
+  async removeFavorite(session: WebSessionDoc, content: ObjectId) {
+    const userId = await WebSession.getUser(session);
+    const compilation = await Compilation.getCompilationByName(userId, "favorites");
+    return await Compilation.removeContent(compilation._id, content);
+  }
+
+  @Router.get("/compilation/:id")
+  async getPlaylist(id: string) {
+    return await Compilation.getCompilationById(id);
   }
 
   @Router.post("/compilation/personal")
@@ -243,11 +278,6 @@ class Routes {
     return await Compilation.getOwnerCompilations(ownerId);
   }
 
-  @Router.get("/compilation/:id")
-  async getPlaylist(id: string) {
-    return await Compilation.getCompilationById(id);
-  }
-
   @Router.post("/compilation/headline")
   async createHeadlinePlaylist(session: WebSessionDoc, group: ObjectId) {
     const userId = WebSession.getUser(session);
@@ -266,7 +296,7 @@ class Routes {
   @Router.put("/compilation/headline/add")
   async addHeadlinePlaylistContent(session: WebSessionDoc, group: ObjectId, content: ObjectId) {
     const userId = WebSession.getUser(session);
-    assert(await Group.userInGroup(group, userId), new NotAllowedError("Not in the group"));
+    assert(await Group.userInGroup(userId, group), new NotAllowedError("Not in the group"));
     const compilation = await Compilation.getCompilationByName(group, "headline");
     return await Compilation.addContent(compilation._id, content);
   }
@@ -274,7 +304,7 @@ class Routes {
   @Router.put("/compilation/headline/remove")
   async removeHeadlinePlaylistContent(session: WebSessionDoc, group: ObjectId, content: ObjectId) {
     const userId = WebSession.getUser(session);
-    assert(await Group.userInGroup(group, userId), new NotAllowedError("Not in the group"));
+    assert(await Group.userInGroup(userId, group), new NotAllowedError("Not in the group"));
     const compilation = await Compilation.getCompilationByName(group, "headline");
     return await Compilation.removeContent(compilation._id, content);
   }
@@ -295,7 +325,7 @@ class Routes {
   }
 
   @Router.get("/music")
-  async getAllMusic() {
+  async getAllMusic(session: WebSessionDoc) {
     console.log("Got music req");
     return await Music.getAllMusic();
   }
@@ -324,22 +354,29 @@ class Routes {
   @Router.put("/vote/downvote/:_id")
   async downvotePost(session: WebSessionDoc, _id: ObjectId) {
     const userId = WebSession.getUser(session);
+
     return await Vote.downvotePost(_id, userId);
   }
 
-  @Router.get("/vote/:_id")
-  async getPostRating(post: ObjectId) {
-    return await Vote.getPostRating(post);
+  @Router.put("/vote/unvote/:_id")
+  async unvotePost(session: WebSessionDoc, _id: ObjectId) {
+    const userId = WebSession.getUser(session);
+    return await Vote.unVotePost(_id, userId);
   }
 
-  @Router.post("/photobanner/:_id")
+  @Router.get("/vote/:_id")
+  async getPostRating(_id: ObjectId) {
+    return await Vote.getPostRating(_id);
+  }
+
+  @Router.post("/photobanner")
   async setPhotobanner(item: ObjectId, photoLink: string) {
     return await Photobanner.setPhoto(item, photoLink);
   }
 
   @Router.get("/photobanner/:_id")
-  async getPhotobanner(item: ObjectId) {
-    return await Photobanner.getItemPhotoBanner(item);
+  async getPhotobanner(_id: ObjectId) {
+    return await Photobanner.getItemPhotoBanner(_id);
   }
 
   @Router.get("/compilation/timeline/:group")
@@ -355,24 +392,32 @@ class Routes {
     return posts.map((post, i) => [post, postRatings[i].voteCount] as [PostDoc, number]).sort((a: [PostDoc, number], b: [PostDoc, number]) => b[1] - a[1]);
   }
 
-  @Router.get("/compilation/favorite")
-  async getFavorites(session: WebSessionDoc) {
-    const userId = WebSession.getUser(session);
-    return await Compilation.getCompilationByName(userId, "favorites");
-  }
+  @Router.put("/group/reordercontent/:group")
+  async orderGroupContent(group: ObjectId) {
+    const groupName = (await Group.getGroupById(group)).name;
+    const captions = await Group.getCaptions(groupName);
+    const postRatings = await Promise.all(captions.map((caption) => Vote.getPostRating(caption._id)));
+    const dayInMilliseconds = 86400000;
 
-  @Router.put("/compilation/add/favorite")
-  async addFavorite(session: WebSessionDoc, content: ObjectId) {
-    const userId = WebSession.getUser(session);
-    const compilation = await Compilation.getCompilationByName(userId, "favorites");
-    return await Compilation.addContent(compilation._id, content);
-  }
+    const compareCaptions = (a: [CaptionDoc, number], b: [CaptionDoc, number]) => {
+      if (b[0].dateCreated.valueOf() - a[0].dateCreated.valueOf() > dayInMilliseconds) {
+        return 1;
+      }
+      if (a[0].dateCreated.valueOf() - b[0].dateCreated.valueOf() > dayInMilliseconds) {
+        return -1;
+      }
 
-  @Router.put("/compilation/remove/favorite")
-  async removeFavorite(session: WebSessionDoc, content: ObjectId) {
-    const userId = WebSession.getUser(session);
-    const compilation = await Compilation.getCompilationByName(userId, "favorites");
-    return await Compilation.removeContent(compilation._id, content);
+      return b[1] - a[1];
+    };
+
+    await Group.orderGroupContent(
+      group,
+      captions,
+      postRatings.map((vote) => vote.voteCount),
+      compareCaptions,
+    );
+
+    return { msg: "success!" };
   }
 }
 export default getExpressRouter(new Routes());
